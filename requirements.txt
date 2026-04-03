@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+supabase
+pydantic
+sqlalchemy[asyncio]
+asyncpg
+slowapi  # rate limiting
+python-dotenv
