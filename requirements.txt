@@ -1,8 +1,13 @@
 fastapi
-uvicorn[standard]
+uvicorn
 supabase
+openai
+anthropic
+google-generativeai
+python-telegram-bot
+requests
 pydantic
 sqlalchemy[asyncio]
 asyncpg
-slowapi  # rate limiting
+slowapi
 python-dotenv

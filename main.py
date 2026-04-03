@@ -1,24 +1,35 @@
 import os
 from fastapi import FastAPI, Request, HTTPException
 from supabase import create_client
-from openai import OpenAI
+from dotenv import load_dotenv
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from ai_router import generate_story
+
+# 🔹 LOAD ENV
+load_dotenv()
 
 app = FastAPI()
 
-# ✅ INIT
+# 🔹 RATE LIMITER
+limiter = Limiter(key_func=get_remote_address)
+
+# 🔹 INIT SUPABASE
 supabase = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_KEY"]
 )
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
+# 🔹 ROOT
 @app.get("/")
 def root():
-    return {"status": "services running"}
+    return {"status": "dBaronX services running 🚀"}
 
-# 🔹 PRESALE (Zoho webhook)
+# =========================
+# 🔹 PRESALE (ZOHO WEBHOOK)
+# =========================
 @app.post("/presale")
+@limiter.limit("10/minute")
 async def presale(req: Request):
     data = await req.json()
 
@@ -26,7 +37,7 @@ async def presale(req: Request):
     amount = data.get("commitment_amount")
 
     if not wallet or not amount:
-        raise HTTPException(status_code=400, detail="Missing fields")
+        raise HTTPException(status_code=400, detail="Missing wallet or amount")
 
     res = supabase.table("presale_commitments").insert({
         "wallet_address": wallet,
@@ -36,36 +47,55 @@ async def presale(req: Request):
 
     return {"ok": True, "data": res.data}
 
+# =========================
 # 🔹 DREAMS (CREATE)
+# =========================
 @app.post("/dreams")
+@limiter.limit("10/minute")
 async def create_dream(req: Request):
     data = await req.json()
 
+    title = data.get("title")
+    goal = data.get("goal")
+
+    if not title or not goal:
+        raise HTTPException(status_code=400, detail="Missing fields")
+
     supabase.table("dreams").insert({
-        "title": data.get("title"),
+        "title": title,
         "description": data.get("description"),
-        "goal": data.get("goal"),
+        "goal": goal,
         "raised": 0
     }).execute()
 
     return {"ok": True}
 
+# =========================
 # 🔹 LIST DREAMS
+# =========================
 @app.get("/dreams")
 def list_dreams():
     res = supabase.table("dreams").select("*").execute()
     return res.data
 
-# 🔹 BACK DREAM (FIXED)
+# =========================
+# 🔹 BACK DREAM
+# =========================
 @app.post("/dreams/back")
+@limiter.limit("10/minute")
 async def back_dream(req: Request):
     data = await req.json()
 
     dream_id = data.get("dream_id")
     amount = data.get("amount")
 
-    # get current value
+    if not dream_id or not amount:
+        raise HTTPException(status_code=400, detail="Missing fields")
+
     current = supabase.table("dreams").select("raised").eq("id", dream_id).single().execute()
+
+    if not current.data:
+        raise HTTPException(status_code=404, detail="Dream not found")
 
     new_amount = current.data["raised"] + amount
 
@@ -75,26 +105,35 @@ async def back_dream(req: Request):
 
     return {"ok": True}
 
-# 🔹 AI STORIES (UPDATED API)
+# =========================
+# 🔹 AI STORIES (MULTI-AI)
+# =========================
 @app.post("/ai/story")
+@limiter.limit("20/minute")
 async def ai_story(req: Request):
     data = await req.json()
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": data["prompt"]}]
-    )
+    prompt = data.get("prompt")
 
-    story = response.choices[0].message.content
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt required")
+
+    story, provider = generate_story(prompt)
 
     supabase.table("ai_stories").insert({
-        "prompt": data["prompt"],
-        "story": story
+        "prompt": prompt,
+        "story": story,
+        "provider": provider
     }).execute()
 
-    return {"story": story}
+    return {
+        "story": story,
+        "provider": provider
+    }
 
-# 🔹 GET USER DATA (FOR TELEGRAM)
+# =========================
+# 🔹 USER LOOKUP (TELEGRAM)
+# =========================
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
     res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()

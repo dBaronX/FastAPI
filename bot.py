@@ -1,72 +1,125 @@
 import os
 import requests
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-API = os.environ["FASTAPI_URL"]
-TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+API = os.environ.get("FASTAPI_URL")
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# 🔹 START
-async def start(update, context):
-    await update.message.reply_text("Welcome to dBaronX 🚀")
+# =========================
+# 🔹 BASIC COMMANDS
+# =========================
 
-# 🔹 DREAMS
-async def dreams(update, context):
-    res = requests.get(f"{API}/dreams").json()
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🚀 Welcome to dBaronX\n\n"
+        "Commands:\n"
+        "/presale - Join DBX presale\n"
+        "/dreams - View crowdfunding dreams\n"
+        "/story <prompt> - Generate AI story\n"
+        "/mycommitment <wallet> - Check your presale"
+    )
 
-    if not res:
-        await update.message.reply_text("No dreams available.")
-        return
+# =========================
+# 🔹 PRESALE
+# =========================
 
-    text = "\n".join([
-        f"{d['title']} ({d['raised']}/{d['goal']})"
-        for d in res
-    ])
+async def presale(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "💰 Join DBX Presale:\n"
+        "https://dbaronx.com/presale"
+    )
 
-    await update.message.reply_text(text)
+# =========================
+# 🔹 DREAMS LIST
+# =========================
 
+async def dreams(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        res = requests.get(f"{API}/dreams").json()
+
+        if not res:
+            await update.message.reply_text("No dreams available.")
+            return
+
+        text = "🌍 Dreams:\n\n"
+        for d in res:
+            text += f"{d['title']}\n{d['raised']}/{d['goal']}\n\n"
+
+        await update.message.reply_text(text)
+
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)}")
+
+# =========================
 # 🔹 AI STORY
-async def story(update, context):
+# =========================
+
+async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
 
     if not prompt:
         await update.message.reply_text("Usage: /story your idea")
         return
 
-    res = requests.post(f"{API}/ai/story", json={"prompt": prompt}).json()
-    await update.message.reply_text(res["story"])
+    try:
+        res = requests.post(
+            f"{API}/ai/story",
+            json={"prompt": prompt}
+        ).json()
 
-# 🔹 PRESALE
-async def presale(update, context):
-    await update.message.reply_text(
-        "Submit here: https://dbaronx.com/presale"
-    )
+        await update.message.reply_text(
+            f"🤖 ({res['provider']})\n\n{res['story']}"
+        )
 
-# 🔹 MY COMMITMENT
-async def mycommitment(update, context):
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)}")
+
+# =========================
+# 🔹 USER COMMITMENT
+# =========================
+
+async def mycommitment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Usage: /mycommitment <wallet>")
         return
 
     wallet = context.args[0]
-    res = requests.get(f"{API}/user/{wallet}").json()
 
-    if not res:
-        await update.message.reply_text("No data found.")
-        return
+    try:
+        res = requests.get(f"{API}/user/{wallet}").json()
 
-    await update.message.reply_text(str(res))
+        if not res:
+            await update.message.reply_text("No commitment found.")
+            return
 
+        data = res[0]
+
+        await update.message.reply_text(
+            f"💰 Commitment:\n\n"
+            f"Wallet: {data['wallet_address']}\n"
+            f"Amount: ${data['commitment_amount']}\n"
+            f"Status: {data['status']}"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)}")
+
+# =========================
 # 🔹 RUN BOT
+# =========================
+
 def run():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("presale", presale))
     app.add_handler(CommandHandler("dreams", dreams))
     app.add_handler(CommandHandler("story", story))
-    app.add_handler(CommandHandler("presale", presale))
     app.add_handler(CommandHandler("mycommitment", mycommitment))
 
+    print("🤖 Bot running...")
     app.run_polling()
 
-if __name__ == "__main__":
+if name == "main":
     run()
