@@ -6,10 +6,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from ai_router import generate_story
 
+
 # 🔹 LOAD ENV
 load_dotenv()
+PORT = int(os.getenv("PORT", 8000))
 
-app = FastAPI()
+app = FastAPI(title="dBaronX Services")
 
 # 🔹 RATE LIMITER
 limiter = Limiter(key_func=get_remote_address)
@@ -17,13 +19,13 @@ limiter = Limiter(key_func=get_remote_address)
 # 🔹 INIT SUPABASE
 supabase = create_client(
     os.environ["SUPABASE_URL"],
-    os.environ["SUPABASE_KEY"]
+    os.environ["SUPABASE_ANNON_KEY"]
 )
 
 # 🔹 ROOT
 @app.get("/")
 def root():
-    return {"status": "dBaronX services running 🚀"}
+    return {"status": "dBaronX services running 🚀" "env": os.getenv("ENVIRONMENT", "production")}
 
 # =========================
 # 🔹 PRESALE (ZOHO WEBHOOK)
