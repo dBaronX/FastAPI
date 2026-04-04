@@ -6,35 +6,39 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from ai_router import generate_story
 
-
-# 🔹 LOAD ENV
+# Load environment variables
 load_dotenv()
+
+# Dynamic port for Render
 PORT = int(os.getenv("PORT", 8000))
 
+# Initialize app
 app = FastAPI(title="dBaronX Services")
 
-# 🔹 RATE LIMITER
+# Rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# 🔹 INIT SUPABASE
-supabase = create_client(
-    os.environ["SUPABASE_URL"],
-    os.environ["SUPABASE_ANNON_KEY"]
-)
+# Initialize Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# 🔹 ROOT
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise Exception("Missing SUPABASE_URL or SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 @app.get("/")
 def root():
-    return {"status": "dBaronX services running 🚀" "env": os.getenv("ENVIRONMENT", "production")}
+    return {
+        "status": "dBaronX services running",
+        "environment": os.getenv("ENVIRONMENT", "production")
+    }
 
-# =========================
-# 🔹 PRESALE (ZOHO WEBHOOK)
-# =========================
+# PRESALE
 @app.post("/presale")
 @limiter.limit("10/minute")
 async def presale(req: Request):
     data = await req.json()
-
     wallet = data.get("wallet")
     amount = data.get("commitment_amount")
 
@@ -49,50 +53,42 @@ async def presale(req: Request):
 
     return {"ok": True, "data": res.data}
 
-# =========================
-# 🔹 DREAMS (CREATE)
-# =========================
+# DREAMS - CREATE
 @app.post("/dreams")
 @limiter.limit("10/minute")
 async def create_dream(req: Request):
     data = await req.json()
-
     title = data.get("title")
     goal = data.get("goal")
 
     if not title or not goal:
-        raise HTTPException(status_code=400, detail="Missing fields")
+        raise HTTPException(status_code=400, detail="Missing title or goal")
 
-    supabase.table("dreams").insert({
+    res = supabase.table("dreams").insert({
         "title": title,
         "description": data.get("description"),
         "goal": goal,
         "raised": 0
     }).execute()
 
-    return {"ok": True}
+    return {"ok": True, "data": res.data}
 
-# =========================
-# 🔹 LIST DREAMS
-# =========================
+# DREAMS - LIST
 @app.get("/dreams")
 def list_dreams():
     res = supabase.table("dreams").select("*").execute()
     return res.data
 
-# =========================
-# 🔹 BACK DREAM
-# =========================
+# DREAMS - BACK
 @app.post("/dreams/back")
 @limiter.limit("10/minute")
 async def back_dream(req: Request):
     data = await req.json()
-
     dream_id = data.get("dream_id")
     amount = data.get("amount")
 
     if not dream_id or not amount:
-        raise HTTPException(status_code=400, detail="Missing fields")
+        raise HTTPException(status_code=400, detail="Missing dream_id or amount")
 
     current = supabase.table("dreams").select("raised").eq("id", dream_id).single().execute()
 
@@ -107,14 +103,11 @@ async def back_dream(req: Request):
 
     return {"ok": True}
 
-# =========================
-# 🔹 AI STORIES (MULTI-AI)
-# =========================
+# AI STORY
 @app.post("/ai/story")
 @limiter.limit("20/minute")
 async def ai_story(req: Request):
     data = await req.json()
-
     prompt = data.get("prompt")
 
     if not prompt:
@@ -133,10 +126,20 @@ async def ai_story(req: Request):
         "provider": provider
     }
 
-# =========================
-# 🔹 USER LOOKUP (TELEGRAM)
-# =========================
+# USER LOOKUP (for Telegram)
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
     res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
     return res.data
+
+# PAYMENT CONFIRM
+@app.post("/payment/confirm")
+async def confirm_payment(req: Request):
+    data = await req.json()
+    # Extend this with your full logic (update presale/dreams, trigger order sync, etc.)
+    return {"ok": True}
+
+# Run locally or on Render
+if name == "main":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
