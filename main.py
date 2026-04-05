@@ -2,6 +2,8 @@ import os
 from fastapi import FastAPI, Request, HTTPException
 from supabase import create_client
 from dotenv import load_dotenv
+
+# Import generate_story correctly (no circular import)
 from ai_router import generate_story
 
 load_dotenv()
@@ -93,6 +95,7 @@ async def ai_story(req: Request):
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
 
+    # Call the function from ai_router
     story, provider = generate_story(prompt)
 
     supabase.table("ai_stories").insert({
