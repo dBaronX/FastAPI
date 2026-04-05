@@ -2,6 +2,7 @@ import os
 from openai import OpenAI
 import anthropic
 import google.generativeai as genai
+from ai_router import generate_story
 
 # INIT
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
