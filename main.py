@@ -101,7 +101,10 @@ async def ai_story(req: Request):
         "provider": provider
     }).execute()
 
-    return {"story": story, "provider": provider}
+    return {
+        "story": story,
+        "provider": provider
+    }
 
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
