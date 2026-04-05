@@ -6,10 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 API = os.environ.get("FASTAPI_URL")
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# =========================
-# 🔹 BASIC COMMANDS
-# =========================
-
+# BASIC COMMANDS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 Welcome to dBaronX\n\n"
@@ -20,19 +17,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/mycommitment <wallet> - Check your presale"
     )
 
-# =========================
-# 🔹 PRESALE
-# =========================
-
 async def presale(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💰 Join DBX Presale:\n"
         "https://dbaronx.com/presale"
     )
-
-# =========================
-# 🔹 DREAMS LIST
-# =========================
 
 async def dreams(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -50,10 +39,6 @@ async def dreams(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
-
-# =========================
-# 🔹 AI STORY
-# =========================
 
 async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
@@ -74,10 +59,6 @@ async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
-
-# =========================
-# 🔹 USER COMMITMENT
-# =========================
 
 async def mycommitment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -105,10 +86,7 @@ async def mycommitment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
-# =========================
-# 🔹 RUN BOT
-# =========================
-
+# RUN BOT
 def run():
     app = ApplicationBuilder().token(TOKEN).build()
 
