@@ -6,23 +6,17 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from ai_router import generate_story
 
-# Load environment variables
 load_dotenv()
 
-# Dynamic port for Render
 PORT = int(os.getenv("PORT", 8000))
 
-# Initialize app
 app = FastAPI(title="dBaronX Services")
 
-# Rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# Dependency for rate limiting
 def rate_limit():
     return limiter
 
-# Initialize Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -38,7 +32,6 @@ def root():
         "environment": os.getenv("ENVIRONMENT", "production")
     }
 
-# PRESALE
 @app.post("/presale")
 async def presale(req: Request, _=Depends(rate_limit)):
     data = await req.json()
@@ -56,7 +49,6 @@ async def presale(req: Request, _=Depends(rate_limit)):
 
     return {"ok": True, "data": res.data}
 
-# DREAMS - CREATE
 @app.post("/dreams")
 async def create_dream(req: Request, _=Depends(rate_limit)):
     data = await req.json()
@@ -75,13 +67,11 @@ async def create_dream(req: Request, _=Depends(rate_limit)):
 
     return {"ok": True, "data": res.data}
 
-# DREAMS - LIST
 @app.get("/dreams")
 def list_dreams():
     res = supabase.table("dreams").select("*").execute()
     return res.data
 
-# DREAMS - BACK
 @app.post("/dreams/back")
 async def back_dream(req: Request, _=Depends(rate_limit)):
     data = await req.json()
@@ -98,13 +88,10 @@ async def back_dream(req: Request, _=Depends(rate_limit)):
 
     new_amount = current.data["raised"] + amount
 
-    supabase.table("dreams").update({
-        "raised": new_amount
-    }).eq("id", dream_id).execute()
+    supabase.table("dreams").update({"raised": new_amount}).eq("id", dream_id).execute()
 
     return {"ok": True}
 
-# AI STORY
 @app.post("/ai/story")
 async def ai_story(req: Request, _=Depends(rate_limit)):
     data = await req.json()
@@ -121,25 +108,18 @@ async def ai_story(req: Request, _=Depends(rate_limit)):
         "provider": provider
     }).execute()
 
-    return {
-        "story": story,
-        "provider": provider
-    }
+    return {"story": story, "provider": provider}
 
-# USER LOOKUP
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
     res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
     return res.data
 
-# PAYMENT CONFIRM
 @app.post("/payment/confirm")
 async def confirm_payment(req: Request):
     data = await req.json()
-    # Extend this with your full logic later
     return {"ok": True}
 
-# Run locally or on Render
-if __name__ == "__main__":
+if name == "main":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT)
