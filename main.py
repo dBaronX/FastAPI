@@ -140,6 +140,6 @@ async def confirm_payment(req: Request):
     return {"ok": True}
 
 # Run locally or on Render
-if name == "main":
+if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT)
