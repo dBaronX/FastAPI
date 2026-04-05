@@ -1,9 +1,7 @@
 import os
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException
 from supabase import create_client
 from dotenv import load_dotenv
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from ai_router import generate_story
 
 load_dotenv()
@@ -11,11 +9,6 @@ load_dotenv()
 PORT = int(os.getenv("PORT", 8000))
 
 app = FastAPI(title="dBaronX Services")
-
-limiter = Limiter(key_func=get_remote_address)
-
-def rate_limit():
-    return limiter
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -33,7 +26,7 @@ def root():
     }
 
 @app.post("/presale")
-async def presale(req: Request, _=Depends(rate_limit)):
+async def presale(req: Request):
     data = await req.json()
     wallet = data.get("wallet")
     amount = data.get("commitment_amount")
@@ -50,7 +43,7 @@ async def presale(req: Request, _=Depends(rate_limit)):
     return {"ok": True, "data": res.data}
 
 @app.post("/dreams")
-async def create_dream(req: Request, _=Depends(rate_limit)):
+async def create_dream(req: Request):
     data = await req.json()
     title = data.get("title")
     goal = data.get("goal")
@@ -73,7 +66,7 @@ def list_dreams():
     return res.data
 
 @app.post("/dreams/back")
-async def back_dream(req: Request, _=Depends(rate_limit)):
+async def back_dream(req: Request):
     data = await req.json()
     dream_id = data.get("dream_id")
     amount = data.get("amount")
@@ -93,7 +86,7 @@ async def back_dream(req: Request, _=Depends(rate_limit)):
     return {"ok": True}
 
 @app.post("/ai/story")
-async def ai_story(req: Request, _=Depends(rate_limit)):
+async def ai_story(req: Request):
     data = await req.json()
     prompt = data.get("prompt")
 
