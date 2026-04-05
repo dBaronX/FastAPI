@@ -126,7 +126,7 @@ async def ai_story(req: Request):
         "provider": provider
     }
 
-# USER LOOKUP (for Telegram)
+# USER LOOKUP
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
     res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
@@ -136,7 +136,7 @@ def get_user(wallet: str):
 @app.post("/payment/confirm")
 async def confirm_payment(req: Request):
     data = await req.json()
-    # Extend this with your full logic (update presale/dreams, trigger order sync, etc.)
+    # Extend this with your full logic later
     return {"ok": True}
 
 # Run locally or on Render
