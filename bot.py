@@ -57,7 +57,7 @@ async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         res = requests.post(
-            f"{API}/ai/story",
+            f"{API}/story",
             json={"prompt": prompt}
         ).json()
 
@@ -103,7 +103,7 @@ def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("presale", presale))
     app.add_handler(CommandHandler("dreams", dreams))
-    app.add_handler(CommandHandler("ai/story", story))
+    app.add_handler(CommandHandler("story", story))
     app.add_handler(CommandHandler("mycommitment", mycommitment))
 
     print("Bot running...")
