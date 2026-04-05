@@ -3,13 +3,13 @@ from openai import OpenAI
 import anthropic
 import google.generativeai as genai
 
-# Initialize clients once
+# Initialize clients
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def generate_story(prompt: str):
-    # 1. GEMINI (cheapest first)
+    # GEMINI (cheapest first)
     try:
         model = genai.GenerativeModel("gemini-pro")
         res = model.generate_content(prompt)
@@ -17,7 +17,7 @@ def generate_story(prompt: str):
     except Exception as e:
         print("❌ Gemini failed:", e)
 
-    # 2. OPENAI
+    # OPENAI
     try:
         res = openai_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -27,7 +27,7 @@ def generate_story(prompt: str):
     except Exception as e:
         print("❌ OpenAI failed:", e)
 
-    # 3. ANTHROPIC
+    # ANTHROPIC
     try:
         res = anthropic_client.messages.create(
             model="claude-3-haiku-20240307",

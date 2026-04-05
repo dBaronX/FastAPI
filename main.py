@@ -11,111 +11,128 @@ PORT = int(os.getenv("PORT", 8000))
 app = FastAPI(title="dBaronX Services")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("Missing SUPABASE_URL or SUPABASE_KEY")
+raise Exception("Missing SUPABASE_URL or SUPABASE_ANON_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.get("/")
 def root():
-    return {
-        "status": "dBaronX services running",
-        "environment": os.getenv("ENVIRONMENT", "production")
-    }
+return {
+"status": "dBaronX services running",
+"environment": os.getenv("ENVIRONMENT", "production")
+}
 
 @app.post("/presale")
 async def presale(req: Request):
-    data = await req.json()
-    wallet = data.get("wallet")
-    amount = data.get("commitment_amount")
+data = await req.json()
 
-    if not wallet or not amount:
-        raise HTTPException(status_code=400, detail="Missing wallet or amount")
+wallet = data.get("wallet")
+amount = data.get("commitment_amount")
 
-    res = supabase.table("presale_commitments").insert({
-        "wallet_address": wallet,
-        "commitment_amount": amount,
-        "status": "pending"
-    }).execute()
+if not wallet or not amount:
+    raise HTTPException(status_code=400, detail="Missing wallet or amount")
 
-    return {"ok": True, "data": res.data}
+res = supabase.table("presale_commitments").insert({
+    "wallet_address": wallet,
+    "commitment_amount": amount,
+    "status": "pending"
+}).execute()
+
+return {"ok": True, "data": res.data}
 
 @app.post("/dreams")
 async def create_dream(req: Request):
-    data = await req.json()
-    title = data.get("title")
-    goal = data.get("goal")
+data = await req.json()
 
-    if not title or not goal:
-        raise HTTPException(status_code=400, detail="Missing title or goal")
+title = data.get("title")
+goal = data.get("goal")
 
-    res = supabase.table("dreams").insert({
-        "title": title,
-        "description": data.get("description"),
-        "goal": goal,
-        "raised": 0
-    }).execute()
+if not title or not goal:
+    raise HTTPException(status_code=400, detail="Missing title or goal")
 
-    return {"ok": True, "data": res.data}
+res = supabase.table("dreams").insert({
+    "title": title,
+    "description": data.get("description"),
+    "goal": goal,
+    "raised": 0
+}).execute()
+
+return {"ok": True, "data": res.data}
 
 @app.get("/dreams")
 def list_dreams():
-    res = supabase.table("dreams").select("*").execute()
-    return res.data
+res = supabase.table("dreams").select("*").execute()
+return res.data
 
 @app.post("/dreams/back")
 async def back_dream(req: Request):
-    data = await req.json()
-    dream_id = data.get("dream_id")
-    amount = data.get("amount")
+data = await req.json()
 
-    if not dream_id or not amount:
-        raise HTTPException(status_code=400, detail="Missing dream_id or amount")
+dream_id = data.get("dream_id")
+amount = data.get("amount")
 
-    current = supabase.table("dreams").select("raised").eq("id", dream_id).single().execute()
+if not dream_id or not amount:
+    raise HTTPException(status_code=400, detail="Missing dream_id or amount")
 
-    if not current.data:
-        raise HTTPException(status_code=404, detail="Dream not found")
+current = supabase.table("dreams").select("raised").eq("id", dream_id).single().execute()
 
-    new_amount = current.data["raised"] + amount
+if not current.data:
+    raise HTTPException(status_code=404, detail="Dream not found")
 
-    supabase.table("dreams").update({"raised": new_amount}).eq("id", dream_id).execute()
+new_amount = current.data["raised"] + amount
 
-    return {"ok": True}
+supabase.table("dreams").update({
+    "raised": new_amount
+}).eq("id", dream_id).execute()
+
+return {"ok": True}
 
 @app.post("/ai/story")
 async def ai_story(req: Request):
-    data = await req.json()
-    prompt = data.get("prompt")
+data = await req.json()
 
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt required")
+prompt = data.get("prompt")
 
-    story, provider = generate_story(prompt)
+if not prompt:
+    raise HTTPException(status_code=400, detail="Prompt required")
 
-    supabase.table("ai_stories").insert({
-        "prompt": prompt,
-        "story": story,
-        "provider": provider
-    }).execute()
+story, provider = generate_story(prompt)
 
-    return {
-        "story": story,
-        "provider": provider
-    }
+supabase.table("ai_stories").insert({
+    "prompt": prompt,
+    "story": story,
+    "provider": provider
+}).execute()
+
+return {
+    "story": story,
+    "provider": provider
+}
 
 @app.get("/user/{wallet}")
 def get_user(wallet: str):
-    res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
-    return res.data
+res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
+return res.data
 
 @app.post("/payment/confirm")
 async def confirm_payment(req: Request):
-    data = await req.json()
-    return {"ok": True}
+data = await req.json()
+
+order_id = data.get("order_id")
+status = data.get("status")
+
+if not order_id:
+    raise HTTPException(status_code=400, detail="Missing order_id")
+
+return {
+    "ok": True,
+    "order_id": order_id,
+    "status": status
+}
 
 if name == "main":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+import uvicorn
+uvicorn.run(app, host="0.0.0.0", port=PORT)
