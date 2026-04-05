@@ -4,8 +4,12 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 API = os.environ.get("FASTAPI_URL")
+
+ if not API: raise Exception("FASTAPI_URL not set")
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
+ if not TOKEN: raise Exception(TELEGRAM_BOT_TOKEN not set")
+ 
 # BASIC COMMANDS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -99,5 +103,5 @@ def run():
     print("🤖 Bot running...")
     app.run_polling()
 
-if name == "main":
+if __name__ == "__main__":
     run()
