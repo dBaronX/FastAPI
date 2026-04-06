@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from supabase import create_client
 from pydantic import BaseModel
-from .models import Base, User, Ad, AdView
-from .database import get_db, engine
-from .ai_router import generate_story
-from .schemas import ConfirmAdRequest
+from models import Base, User, Ad, AdView
+from database import get_db, engine
+from ai_router import generate_story
+from schemas import ConfirmAdRequest
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY_LIVE") if os.getenv("NODE_ENV") == "production" else os.getenv("STRIPE_SECRET_KEY_TEST")
 
