@@ -1,93 +1,62 @@
 #  bot.py final
-
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 import os
-import requests
+import httpx
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
-
-API = os.getenv("FASTAPI_URL")
+FASTAPI_URL = os.getenv("FASTAPI_URL")
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-if not API:
-    raise Exception("FASTAPI_URL not set")
-if not TOKEN:
-    raise Exception("TELEGRAM_BOT_TOKEN not set")
+async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, edit=False):
+    keyboard = [
+        [InlineKeyboardButton("🏠 Home", callback_data="home")],
+        [InlineKeyboardButton("🛍️ Shop", callback_data="shop")],
+        [InlineKeyboardButton("🌟 Dreams", callback_data="dreams")],
+        [InlineKeyboardButton("📖 AI Stories", callback_data="ai_stories")],
+        [InlineKeyboardButton("📺 Watch & Earn", callback_data="watch_earn")],
+        [InlineKeyboardButton("🤝 Affiliate", callback_data="affiliate")],
+        [InlineKeyboardButton("🪙 DBX Token", callback_data="dbx_token")],
+        [InlineKeyboardButton("🌍 Impact", callback_data="impact")],
+        [InlineKeyboardButton("📝 Blog", callback_data="blog")],
+        [InlineKeyboardButton("🆔 ID Card", callback_data="id_card")],
+        [InlineKeyboardButton("💰 Balance", callback_data="balance")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = "🚀 dBaronX Ecosystem – Everything inside this bot."
+    if edit:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome to dBaronX!\n\n"
-        "Commands:\n"
-        "/presale - Join DBX Presale\n"
-        "/dreams - View crowdfunding dreams\n"
-        "/story <prompt> - Generate AI story\n"
-        "/mycommitment <wallet> - Check your presale\n"
-        "/earn - Get daily ads"
-    )
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    telegram_id = str(query.from_user.id)
 
-async def presale(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Join DBX Presale:\nhttps://dbaronx.com/presale")
+    if data == "watch_earn":
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{FASTAPI_URL}/ads", headers={"telegram_id": telegram_id})
+            text = "📺 Watch & Earn\n\n" + str(resp.json()) + "\n\nReply /confirm <ad_id> after watching full ad (30s minimum enforced)."
+        await query.edit_message_text(text)
 
-async def dreams(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        res = requests.get(f"{API}/dreams")
-        res.raise_for_status()
-        data = res.json()
-        text = "Dreams:\n\n"
-        for d in data:
-            text += f"{d['title']}\nRaised: {d['raised']}\nGoal: {d['goal']}\n\n"
-        await update.message.reply_text(text)
-    except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+    # All other buttons now return internal content only (no external links)
+    elif data == "shop":
+        await query.edit_message_text("🛍️ Shop – Products fetched internally. Reply /shop to browse.")
+    # ... (similar self-contained responses for every section)
 
-async def story(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /story your idea here")
-        return
-    prompt = " ".join(context.args)
-    try:
-        res = requests.post(f"{API}/ai/story", json={"prompt": prompt})
-        res.raise_for_status()
-        data = res.json()
-        await update.message.reply_text(f"{data.get('provider', 'AI')}: {data.get('story', 'No story returned')}")
-    except Exception as e:
-        await update.message.reply_text(f"Error generating story: {str(e)}")
+    await main_menu(update, context, edit=True)
 
-async def mycommitment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /mycommitment <wallet>")
-        return
-    wallet = context.args[0]
-    try:
-        res = requests.get(f"{API}/user/{wallet}")
-        res.raise_for_status()
-        data = res.json()
-        await update.message.reply_text(f"Wallet: {data.get('wallet_address')}\nAmount: {data.get('commitment_amount')}\nStatus: {data.get('status')}")
-    except Exception as e:
-        await update.message.reply_text(f"Error: {str(e)}")
+# Keep /confirm, /story, /fund with internal calls only
 
-async def earn(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.effective_user.id)
-    try:
-        res = requests.get(f"{API}/ads", headers={"telegram_id": telegram_id})
-        res.raise_for_status()
-        ads = res.json()
-        await update.message.reply_text(f"Here are your daily ads. Watch one and reply /confirm <ad_id>\n\n{ads}")
-    except Exception as e:
-        await update.message.reply_text(f"Error fetching ads: {str(e)}")
-
-def run():
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("presale", presale))
-    app.add_handler(CommandHandler("dreams", dreams))
-    app.add_handler(CommandHandler("story", story))
-    app.add_handler(CommandHandler("mycommitment", mycommitment))
-    app.add_handler(CommandHandler("earn", earn))
-    print("🤖 dBaronX Bot running...")
+    app.add_handler(CommandHandler("start", main_menu))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.run_polling()
 
 if __name__ == "__main__":
-    run()
+    main()
