@@ -10,6 +10,7 @@ requests
 email-validator>=2.2
 pydantic[email]>=2.12
 sqlalchemy[asyncio]
+sqlalchemy.txt
 asyncpg
 slowapi
 python-dotenv
