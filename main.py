@@ -1,145 +1,124 @@
+#  apps/services-fastapi/main.py
+
 import os
-from fastapi import FastAPI, Request, HTTPException, Depends
+import asyncio
+import stripe
+import httpx
+from fastapi import FastAPI, Depends, HTTPException, Request, Header
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from datetime import datetime
 from supabase import create_client
-from dotenv import load_dotenv
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from ai_router import generate_story
+from pydantic import BaseModel
+from .models import Base, User, Ad, AdView
+from .database import get_db, engine
+from .ai_router import generate_story
+from .schemas import ConfirmAdRequest
 
-# Load environment variables
-load_dotenv()
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY_LIVE") if os.getenv("NODE_ENV") == "production" else os.getenv("STRIPE_SECRET_KEY_TEST")
 
-# Dynamic port for Render
-PORT = int(os.getenv("PORT", 8000))
-
-# Initialize app
 app = FastAPI(title="dBaronX Services")
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://dbaronx.com", "https://*.onrender.com", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Dependency for rate limiting
-def rate_limit():
-    return limiter
+Base.metadata.create_all(bind=engine)
 
-# Initialize Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# HCAPTCHA
+async def verify_hcaptcha(token: str):
+    if not token:
+        raise HTTPException(status_code=400, detail="Captcha token required")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.hcaptcha.com/siteverify",   # Official endpoint
+            data={
+                "secret": os.getenv("HCAPTCHA_SECRET"),
+                "response": token,
+                # "remoteip": request.client.host   # optional but recommended
+            }
+        )
+        data = resp.json()
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("Missing SUPABASE_URL or SUPABASE_KEY")
+    if not data.get("success", False):
+        raise HTTPException(status_code=400, detail="Captcha failed")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return True
 
-@app.get("/")
-def root():
-    return {
-        "status": "dBaronX services running",
-        "environment": os.getenv("ENVIRONMENT", "production")
-    }
+#hcaptcha 
+@app.post("/confirm")
+async def confirm_ad(data: ConfirmAdRequest, telegram_id: str = Header(None), db: Session = Depends(get_db)):
+    user = await get_user_by_telegram(telegram_id, db)
+    
+    if not await verify_hcaptcha(data.captcha_token):
+        raise HTTPException(status_code=400, detail="Captcha failed")
 
-# PRESALE
-@app.post("/presale")
-async def presale(req: Request, _=Depends(rate_limit)):
-    data = await req.json()
-    wallet = data.get("wallet")
-    amount = data.get("commitment_amount")
+    # ... rest of your reward logic
+# TELEGRAM DEPENDENCY
+async def get_user_by_telegram(telegram_id: str = Header(None), db: Session = Depends(get_db)):
+    if not telegram_id:
+        raise HTTPException(401, "telegram_id header required")
+    user = db.query(User).filter(User.telegram_id == telegram_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    return user
 
-    if not wallet or not amount:
-        raise HTTPException(status_code=400, detail="Missing wallet or amount")
+# ADS ENDPOINTS (from affiliate)
+@app.get("/ads")
+async def fetch_ads(telegram_id: str = Header(None), db: Session = Depends(get_db)):
+    user = await get_user_by_telegram(telegram_id, db)
+    # your get_ads_for_user logic here (from previous response)
+    return get_ads_for_user(db, user)
 
-    res = supabase.table("presale_commitments").insert({
-        "wallet_address": wallet,
-        "commitment_amount": amount,
-        "status": "pending"
-    }).execute()
+@app.post("/confirm")
+async def confirm_ad(data: ConfirmAdRequest, telegram_id: str = Header(None), db: Session = Depends(get_db)):
+    user = await get_user_by_telegram(telegram_id, db)
+    if not await verify_hcaptcha(data.captcha_token):
+        raise HTTPException(status_code=400, detail="Captcha failed")
+    success = reward_user(db, user.id, data.ad_id)
+    if not success:
+        raise HTTPException(400, "Reward failed")
+    return {"status": "success"}    
 
-    return {"ok": True, "data": res.data}
+# STRIPE WEBHOOK (central for ALL payments)
+@app.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("Stripe-Signature")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET"))
+    except Exception:
+        raise HTTPException(400, "Invalid signature")
 
-# DREAMS - CREATE
-@app.post("/dreams")
-async def create_dream(req: Request, _=Depends(rate_limit)):
-    data = await req.json()
-    title = data.get("title")
-    goal = data.get("goal")
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        # Handle presale, dreams, Medusa orders, etc.
+        order_id = session.get("metadata", {}).get("orderId")
+        supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+        supabase.table("presale_commitments").update({"status": "paid"}).eq("id", order_id).execute()
+        # Add similar for dreams, orders, etc.
 
-    if not title or not goal:
-        raise HTTPException(status_code=400, detail="Missing title or goal")
+    return {"received": True}
 
-    res = supabase.table("dreams").insert({
-        "title": title,
-        "description": data.get("description"),
-        "goal": goal,
-        "raised": 0
-    }).execute()
-
-    return {"ok": True, "data": res.data}
-
-# DREAMS - LIST
-@app.get("/dreams")
-def list_dreams():
-    res = supabase.table("dreams").select("*").execute()
-    return res.data
-
-# DREAMS - BACK
-@app.post("/dreams/back")
-async def back_dream(req: Request, _=Depends(rate_limit)):
-    data = await req.json()
-    dream_id = data.get("dream_id")
-    amount = data.get("amount")
-
-    if not dream_id or not amount:
-        raise HTTPException(status_code=400, detail="Missing dream_id or amount")
-
-    current = supabase.table("dreams").select("raised").eq("id", dream_id).single().execute()
-
-    if not current.data:
-        raise HTTPException(status_code=404, detail="Dream not found")
-
-    new_amount = current.data["raised"] + amount
-
-    supabase.table("dreams").update({
-        "raised": new_amount
-    }).eq("id", dream_id).execute()
-
-    return {"ok": True}
-
-# AI STORY
+# AI STORY (tiered)
 @app.post("/ai/story")
-async def ai_story(req: Request, _=Depends(rate_limit)):
+async def ai_story(req: Request, db: Session = Depends(get_db)):
     data = await req.json()
-    prompt = data.get("prompt")
+    user = await get_user_by_telegram(data.get("telegram_id"), db)  # or JWT
+    # Tier logic in ai_router
+    result = generate_story(data["prompt"], user.subscription_tier)
+    return result
 
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt required")
+# ... add /dreams, /presale etc. from previous screenshots
 
-    story, provider = generate_story(prompt)
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(reset_daily_budgets())
 
-    supabase.table("ai_stories").insert({
-        "prompt": prompt,
-        "story": story,
-        "provider": provider
-    }).execute()
-
-    return {
-        "story": story,
-        "provider": provider
-    }
-
-# USER LOOKUP
-@app.get("/user/{wallet}")
-def get_user(wallet: str):
-    res = supabase.table("presale_commitments").select("*").eq("wallet_address", wallet).execute()
-    return res.data
-
-# PAYMENT CONFIRM
-@app.post("/payment/confirm")
-async def confirm_payment(req: Request):
-    data = await req.json()
-    # Extend this with your full logic later
-    return {"ok": True}
-
-# Run locally or on Render
-if name == "main":
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

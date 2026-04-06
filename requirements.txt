@@ -12,3 +12,9 @@ sqlalchemy[asyncio]
 asyncpg
 slowapi
 python-dotenv
+sqlalchemy
+psycopg2-binary
+python-dotenv
+httpx
+python-jose
+passlib[bcrypt]
