@@ -14,7 +14,7 @@ slowapi
 python-dotenv
 sqlalchemy
 psycopg2-binary
-python-dotenv
 httpx
 python-jose
 passlib[bcrypt]
+stripe>=10.0.0
