@@ -4,10 +4,11 @@ gunicorn
 supabase
 openai
 anthropic
-google-generativeai
+google-genai>=1.0
 python-telegram-bot
 requests
-pydantic
+email-validator>=2.2
+pydantic[email]>=2.12
 sqlalchemy[asyncio]
 asyncpg
 slowapi

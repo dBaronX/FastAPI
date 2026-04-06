@@ -6,8 +6,9 @@ from typing import Tuple
 from pydantic import BaseModel
 from fastapi import HTTPException
 from openai import OpenAI, APIError
+from google import genai
+from google.genai import types
 import anthropic
-import google.generativeai as genai
 import requests  # for any extra
 
 class StoryResponse(BaseModel):
