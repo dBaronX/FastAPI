@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from supabase import create_client
 from pydantic import BaseModel
-from models import Base, User, Ad, AdView
 from database import get_db, engine
 from ai_router import generate_story
 from schemas import ConfirmAdRequest
