@@ -19,7 +19,6 @@ app = FastAPI(title="dBaronX Services")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-Base.metadata.create_all(bind=engine)
 
 # DAILY REWARD POOL (60% of total advertiser daily budget)
 async def get_daily_reward_pool(db: Session):
