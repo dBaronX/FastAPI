@@ -1,4 +1,5 @@
 import os
+import uvicorn
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -447,4 +448,134 @@ async def confirm_payment(req: CreatePaymentRequest):
     if update.data is None:
         raise HTTPException(status_code=500, detail="Failed to confirm payment")
 
+    
     return {"ok": True, "order_id": order["id"]}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("create_order failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/orders/{order_id}")
+async def get_order(order_id: str):
+    try:
+        if supabase is None:
+            raise HTTPException(status_code=500, detail="Supabase client not initialized")
+
+        result = (
+            supabase.table("orders")
+            .select("*")
+            .eq("id", order_id)
+            .limit(1)
+            .execute()
+        )
+
+        rows = result.data or []
+        if not rows:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        return {"ok": True, "order": rows[0]}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("get_order failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/orders")
+async def list_orders(limit: int = 20):
+    try:
+        if supabase is None:
+            raise HTTPException(status_code=500, detail="Supabase client not initialized")
+
+        limit = max(1, min(limit, 100))
+
+        result = (
+            supabase.table("orders")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+        return {"ok": True, "orders": result.data or []}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("list_orders failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/orders/{order_id}/mark-paid")
+async def mark_order_paid(order_id: str):
+    try:
+        if supabase is None:
+            raise HTTPException(status_code=500, detail="Supabase client not initialized")
+
+        existing = (
+            supabase.table("orders")
+            .select("id,payment_status,status")
+            .eq("id", order_id)
+            .limit(1)
+            .execute()
+        )
+
+        rows = existing.data or []
+        if not rows:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        updated = (
+            supabase.table("orders")
+            .update(
+                {
+                    "payment_status": "paid",
+                    "status": "paid",
+                    "paid_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+            .eq("id", order_id)
+            .execute()
+        )
+
+        return {
+            "ok": True,
+            "message": "Order marked as paid",
+            "order": (updated.data or [None])[0],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("mark_order_paid failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/health")
+async def health():
+    return {
+        "ok": True,
+        "service": "dbaronx-fastapi",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/")
+async def root():
+    return {
+        "ok": True,
+        "message": "dBaronX FastAPI service is running",
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        reload=False,
+    )
